@@ -12,21 +12,24 @@ export const authOptions: AuthOptions = {
   callbacks: {
     async jwt({ token, account, profile }) {
       if (account) {
-        token.id = (profile as any).id?.toString(); // GitHub ID
+        // Guardar el ID numérico de GitHub
+        token.githubId = (profile as any).id?.toString();
       }
-      if (token.id) {
-        let dashboardId = await kv.get<string>(`user:${token.id}:dashboardId`);
+      if (token.githubId) {
+        // Asignar dashboard ID de 6 dígitos
+        let dashboardId = await kv.get<string>(`user:${token.githubId}:dashboardId`);
         if (!dashboardId) {
           dashboardId = Math.floor(100000 + Math.random() * 900000).toString();
-          await kv.set(`user:${token.id}:dashboardId`, dashboardId);
+          await kv.set(`user:${token.githubId}:dashboardId`, dashboardId);
         }
         token.dashboardId = dashboardId;
+        token.sub = token.githubId; // Necesario para que session.user.id funcione
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.id as string;
+        session.user.id = token.githubId as string;
         session.user.dashboardId = token.dashboardId as string;
       }
       return session;
@@ -35,4 +38,5 @@ export const authOptions: AuthOptions = {
   pages: {
     signIn: "/login",
   },
+  secret: process.env.NEXTAUTH_SECRET,
 };
