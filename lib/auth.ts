@@ -10,27 +10,23 @@ export const authOptions: AuthOptions = {
     }),
   ],
   callbacks: {
-    async jwt({ token, account, profile }) {
-      if (account) {
-        // Guardar el ID numérico de GitHub
-        token.githubId = (profile as any).id?.toString();
-      }
-      if (token.githubId) {
-        // Asignar dashboard ID de 6 dígitos
-        let dashboardId = await kv.get<string>(`user:${token.githubId}:dashboardId`);
+    async jwt({ token, account }) {
+      // La primera vez que se autentica, token.sub ya tiene el ID de GitHub (string)
+      if (account && token.sub) {
+        // Buscar o crear el dashboard ID de 6 dígitos
+        let dashboardId = await kv.get<string>(`user:${token.sub}:dashboardId`);
         if (!dashboardId) {
           dashboardId = Math.floor(100000 + Math.random() * 900000).toString();
-          await kv.set(`user:${token.githubId}:dashboardId`, dashboardId);
+          await kv.set(`user:${token.sub}:dashboardId`, dashboardId);
         }
         token.dashboardId = dashboardId;
-        token.sub = token.githubId; // Necesario para que session.user.id funcione
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        session.user.id = token.githubId as string;
-        session.user.dashboardId = token.dashboardId as string;
+        session.user.id = token.sub as string;         // GitHub ID
+        session.user.dashboardId = token.dashboardId as string; // ID de 6 dígitos
       }
       return session;
     },
