@@ -1,9 +1,8 @@
-import { kv } from "@vercel/kv";
+import { db } from "../../lib/firebase-admin";
 import { getToken } from "next-auth/jwt";
 import type { NextApiRequest, NextApiResponse } from "next";
 
 interface Review {
-  id: string;
   userId: string;
   productName: string;
   title: string;
@@ -12,49 +11,56 @@ interface Review {
   createdAt: number;
 }
 
-const COOLDOWN = 32 * 3600 * 1000; // 32 horas en milisegundos
+const COOLDOWN_HOURS = 32;
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  const key = "reviews";
-
-  if (req.method === "GET") {
-    const reviews = await kv.get<Review[]>(key) || [];
-    return res.status(200).json(reviews);
-  }
-
-  if (req.method === "POST") {
-    const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
-    if (!token || !token.sub) return res.status(401).json({ error: "No autorizado" });
-
-    const userId = token.sub;
-    const { productName, title, description, stars } = req.body;
-    if (!productName || !title || !description || stars < 1 || stars > 5) {
-      return res.status(400).json({ error: "Datos inválidos" });
+  try {
+    if (req.method === "GET") {
+      const snapshot = await db.ref("reviews").once("value");
+      const reviews = snapshot.val() ? Object.values(snapshot.val()) : [];
+      return res.status(200).json(reviews);
     }
 
-    // Verificar cooldown
-    const lastReviewKey = `lastReview:${userId}`;
-    const lastReview = await kv.get<number>(lastReviewKey);
-    if (lastReview && Date.now() - lastReview < COOLDOWN) {
-      const remaining = Math.ceil((lastReview + COOLDOWN - Date.now()) / 60000);
-      return res.status(429).json({ error: `Debes esperar ${remaining} minutos para publicar otra reseña.` });
+    if (req.method === "POST") {
+      const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET });
+      if (!token || !token.sub) return res.status(401).json({ error: "No autorizado" });
+
+      const userId = token.sub;
+      const { productName, title, description, stars } = req.body;
+      if (!productName || !title || !description || stars < 1 || stars > 5) {
+        return res.status(400).json({ error: "Datos inválidos" });
+      }
+
+      // Cooldown de 32 horas
+      const lastReviewRef = db.ref(`lastReview/${userId}`);
+      const lastReviewSnap = await lastReviewRef.once("value");
+      const lastReview = lastReviewSnap.val();
+      if (lastReview) {
+        const diff = Date.now() - lastReview;
+        if (diff < COOLDOWN_HOURS * 3600 * 1000) {
+          const remaining = Math.ceil((COOLDOWN_HOURS * 3600 * 1000 - diff) / 60000);
+          return res.status(429).json({ error: `Debes esperar ${remaining} minutos para publicar otra reseña.` });
+        }
+      }
+
+      const review: Review = {
+        userId,
+        productName,
+        title,
+        description,
+        stars,
+        createdAt: Date.now(),
+      };
+
+      await db.ref("reviews").push().set(review);
+      await lastReviewRef.set(Date.now());
+
+      return res.status(201).json(review);
     }
 
-    const reviews = await kv.get<Review[]>(key) || [];
-    const newReview: Review = {
-      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 5),
-      userId,
-      productName,
-      title,
-      description,
-      stars,
-      createdAt: Date.now(),
-    };
-    reviews.push(newReview);
-    await kv.set(key, reviews);
-    await kv.set(lastReviewKey, Date.now());
-    return res.status(201).json(newReview);
+    return res.status(405).json({ error: "Method not allowed" });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ error: "Error interno del servidor" });
   }
-
-  return res.status(405).json({ error: "Method not allowed" });
 }
