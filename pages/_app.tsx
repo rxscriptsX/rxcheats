@@ -1,16 +1,14 @@
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import type { AppProps } from "next/app";
 import Link from "next/link";
-import { useRouter } from "next/router";
-import { useState } from "react";
 import Head from "next/head";
+import { useState } from "react";
 
 const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_SECRET || "onlyalex";
 
 function Layout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
-  const router = useRouter();
-  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [productForm, setProductForm] = useState({
     name: "",
     price: "",
@@ -33,13 +31,13 @@ function Layout({ children }: { children: React.ReactNode }) {
     setLoadingProducts(false);
   };
 
-  const handleAdminClick = () => {
-    const password = prompt("Introduce la contraseña de administrador:");
-    if (password === ADMIN_SECRET) {
-      setShowAdminModal(true);
+  const openAdmin = () => {
+    const pw = prompt("Enter admin password:");
+    if (pw === ADMIN_SECRET) {
+      setShowAdmin(true);
       fetchAdminProducts();
-    } else if (password !== null) {
-      alert("Contraseña incorrecta");
+    } else if (pw !== null) {
+      alert("Wrong password");
     }
   };
 
@@ -47,7 +45,7 @@ function Layout({ children }: { children: React.ReactNode }) {
 
   const createProduct = async () => {
     if (!productForm.name || !productForm.price || !productForm.paymentLink || !productForm.description) {
-      setAdminMsg("Todos los campos obligatorios deben estar completos.");
+      setAdminMsg("All required fields must be filled.");
       return;
     }
     try {
@@ -65,22 +63,22 @@ function Layout({ children }: { children: React.ReactNode }) {
       });
       const data = await res.json();
       if (res.ok) {
-        setAdminMsg("Producto creado.");
+        setAdminMsg("Product created successfully.");
         setProductForm({ name: "", price: "", paymentLink: "", description: "", platform: "" });
         setCoupons([]);
         fetchAdminProducts();
       } else {
-        setAdminMsg(data.error || "Error");
+        setAdminMsg(data.error || "Error creating product.");
       }
     } catch {
-      setAdminMsg("Error de conexión.");
+      setAdminMsg("Connection error.");
     }
   };
 
-  const deleteProduct = async (productName: string) => {
-    if (!confirm(`¿Eliminar "${productName}"?`)) return;
+  const deleteProduct = async (name: string) => {
+    if (!confirm(`Delete "${name}"?`)) return;
     try {
-      const res = await fetch(`/api/products?name=${encodeURIComponent(productName)}`, {
+      const res = await fetch(`/api/products?name=${encodeURIComponent(name)}`, {
         method: "DELETE",
         headers: { "x-admin-secret": ADMIN_SECRET },
       });
@@ -88,72 +86,73 @@ function Layout({ children }: { children: React.ReactNode }) {
         fetchAdminProducts();
       } else {
         const data = await res.json();
-        setAdminMsg(data.error || "Error al eliminar");
+        setAdminMsg(data.error || "Error deleting product.");
       }
     } catch {
-      setAdminMsg("Error de conexión al eliminar.");
+      setAdminMsg("Connection error.");
     }
   };
 
   return (
     <>
       <Head>
-        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+          rel="stylesheet"
+        />
       </Head>
-      <div style={styles.wrapper}>
+      <div style={styles.shell}>
         <nav style={styles.nav}>
           <Link href="/entry" style={styles.logo}>RXCHEATS</Link>
           <div style={styles.navRight}>
             {session ? (
               <>
-                <span style={styles.userInfo}>
-                  {session.user?.name} <span style={styles.badge}>#{session.user?.dashboardId}</span>
+                <span style={styles.user}>
+                  {session.user?.name}{' '}
+                  <span style={styles.badge}>#{session.user?.dashboardId}</span>
                 </span>
-                <button onClick={() => signOut({ callbackUrl: "/" })} style={styles.navBtn}>Cerrar sesión</button>
+                <button onClick={() => signOut({ callbackUrl: "/" })} style={styles.navBtn}>Log out</button>
               </>
             ) : (
-              <Link href="/login" style={styles.navBtn}>Iniciar sesión</Link>
+              <Link href="/login" style={styles.navBtn}>Sign in</Link>
             )}
           </div>
         </nav>
         <main style={styles.main}>{children}</main>
+        <button onClick={openAdmin} style={styles.fab}>+</button>
 
-        {/* Botón "+" flotante */}
-        <button onClick={handleAdminClick} style={styles.fab}>+</button>
-
-        {/* Modal admin */}
-        {showAdminModal && (
-          <div style={styles.modalOverlay}>
+        {showAdmin && (
+          <div style={styles.overlay}>
             <div style={styles.modal}>
-              <h2 style={{ marginTop: 0, fontWeight: 600 }}>Administrar Productos</h2>
+              <h2 style={styles.modalTitle}>Product Administration</h2>
 
-              {/* Formulario de creación */}
-              <div style={{ marginBottom: "2rem" }}>
-                <input type="text" placeholder="Nombre" value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} style={styles.input} />
-                <input type="number" placeholder="Precio (€)" value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} style={styles.input} />
-                <input type="text" placeholder="Enlace de pago" value={productForm.paymentLink} onChange={e => setProductForm({ ...productForm, paymentLink: e.target.value })} style={styles.input} />
-                <textarea placeholder="Descripción" value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} rows={3} style={{ ...styles.input, resize: "vertical" }} />
-                <input type="text" placeholder="Plataforma (ej. PayPal)" value={productForm.platform} onChange={e => setProductForm({ ...productForm, platform: e.target.value })} style={styles.input} />
+              {/* Create */}
+              <div style={{ marginBottom: '2rem' }}>
+                <input type="text" placeholder="Product name" value={productForm.name} onChange={e => setProductForm({...productForm, name: e.target.value})} style={styles.input} />
+                <input type="number" placeholder="Price (€)" value={productForm.price} onChange={e => setProductForm({...productForm, price: e.target.value})} style={styles.input} />
+                <input type="text" placeholder="Payment link" value={productForm.paymentLink} onChange={e => setProductForm({...productForm, paymentLink: e.target.value})} style={styles.input} />
+                <textarea placeholder="Description" value={productForm.description} onChange={e => setProductForm({...productForm, description: e.target.value})} rows={3} style={{...styles.input, resize:'vertical'}} />
+                <input type="text" placeholder="Platform (e.g. PayPal)" value={productForm.platform} onChange={e => setProductForm({...productForm, platform: e.target.value})} style={styles.input} />
 
-                <h3>Cupones</h3>
+                <h3 style={{ fontWeight: 500, margin: '1rem 0 0.5rem' }}>Coupons</h3>
                 {coupons.map((c, i) => (
-                  <div key={i} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                    <input type="text" placeholder="Código" value={c.code} onChange={e => { const nc = [...coupons]; nc[i].code = e.target.value; setCoupons(nc); }} style={styles.input} />
-                    <input type="number" placeholder="Descuento (€)" value={c.discount} onChange={e => { const nc = [...coupons]; nc[i].discount = e.target.value; setCoupons(nc); }} style={styles.input} />
+                  <div key={i} style={{ display:'flex', gap:'0.5rem', marginBottom:'0.5rem' }}>
+                    <input type="text" placeholder="Code" value={c.code} onChange={e => { const n = [...coupons]; n[i].code = e.target.value; setCoupons(n); }} style={styles.input} />
+                    <input type="number" placeholder="Discount (€)" value={c.discount} onChange={e => { const n = [...coupons]; n[i].discount = e.target.value; setCoupons(n); }} style={styles.input} />
                   </div>
                 ))}
-                <button onClick={addCoupon} style={styles.secondaryBtn}>+ Añadir cupón</button>
-                <button onClick={createProduct} style={styles.primaryBtn}>Publicar Producto</button>
-                {adminMsg && <p style={{ marginTop: "0.5rem", color: adminMsg.includes("Error") ? "#ff6b6b" : "#51cf66" }}>{adminMsg}</p>}
+                <button onClick={addCoupon} style={styles.secondaryBtn}>+ Add coupon</button>
+                <button onClick={createProduct} style={styles.primaryBtn}>Publish Product</button>
+                {adminMsg && <p style={{ marginTop:'0.5rem', color: adminMsg.includes('Error') ? '#ff6b6b' : '#51cf66' }}>{adminMsg}</p>}
               </div>
 
-              {/* Lista de productos con opción de eliminar */}
+              {/* Product list with delete */}
               <div>
-                <h3>Productos existentes</h3>
-                {loadingProducts && <p>Cargando...</p>}
-                {!loadingProducts && adminProducts.length === 0 && <p style={{ color: "#aaa" }}>No hay productos.</p>}
-                {adminProducts.map((p: any) => (
-                  <div key={p.name} style={styles.productItem}>
+                <h3 style={{ fontWeight: 500 }}>Existing Products</h3>
+                {loadingProducts && <p>Loading...</p>}
+                {!loadingProducts && adminProducts.length === 0 && <p style={{ color:'#888' }}>No products yet.</p>}
+                {adminProducts.map((p:any) => (
+                  <div key={p.name} style={styles.productRow}>
                     <div>
                       <strong>{p.name}</strong> – {p.price}€
                     </div>
@@ -162,7 +161,7 @@ function Layout({ children }: { children: React.ReactNode }) {
                 ))}
               </div>
 
-              <button onClick={() => setShowAdminModal(false)} style={{ ...styles.secondaryBtn, width: "100%", marginTop: "1rem" }}>Cerrar</button>
+              <button onClick={() => setShowAdmin(false)} style={{...styles.secondaryBtn, width:'100%', marginTop:'1.5rem'}}>Close</button>
             </div>
           </div>
         )}
@@ -181,11 +180,11 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
   );
 }
 
-// ==================== ESTILOS FULL‑SCREEN PROFESIONALES ====================
+// ==================== REFINED STYLES ====================
 const styles: Record<string, React.CSSProperties> = {
-  wrapper: {
+  shell: {
     minHeight: "100vh",
-    background: "radial-gradient(ellipse at bottom, #1a1a1a 0%, #0d0d0d 100%)",
+    background: "#0a0a0a",
     color: "#fff",
     fontFamily: "'Inter', system-ui, sans-serif",
     display: "flex",
@@ -196,17 +195,17 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "center",
     padding: "1.2rem 3rem",
-    backdropFilter: "blur(20px)",
-    background: "rgba(255,255,255,0.02)",
-    borderBottom: "1px solid rgba(255,255,255,0.05)",
+    borderBottom: "1px solid rgba(255,255,255,0.08)",
+    backdropFilter: "blur(16px)",
+    background: "rgba(10,10,10,0.7)",
     position: "sticky",
     top: 0,
     zIndex: 100,
   },
   logo: {
     fontSize: "1.8rem",
-    fontWeight: 300,
-    letterSpacing: "6px",
+    fontWeight: 200,
+    letterSpacing: "8px",
     color: "#fff",
     textDecoration: "none",
     textTransform: "uppercase" as const,
@@ -214,47 +213,48 @@ const styles: Record<string, React.CSSProperties> = {
   navRight: {
     display: "flex",
     alignItems: "center",
-    gap: "1.5rem",
+    gap: "2rem",
   },
-  userInfo: {
-    fontSize: "0.9rem",
+  user: {
     color: "#ccc",
+    fontSize: "0.9rem",
   },
   badge: {
-    backgroundColor: "#333",
-    padding: "0.1rem 0.5rem",
+    backgroundColor: "#222",
+    padding: "0.15rem 0.6rem",
     borderRadius: "12px",
     fontSize: "0.8rem",
     fontWeight: 600,
     color: "#aaa",
+    marginLeft: "0.4rem",
   },
   navBtn: {
-    background: "none",
-    border: "1px solid rgba(255,255,255,0.2)",
+    background: "transparent",
+    border: "1px solid rgba(255,255,255,0.25)",
     color: "#fff",
-    padding: "0.4rem 1.2rem",
-    borderRadius: "8px",
-    cursor: "pointer",
-    fontSize: "0.85rem",
+    padding: "0.5rem 1.5rem",
+    borderRadius: "10px",
     fontWeight: 500,
+    cursor: "pointer",
     textDecoration: "none",
-    transition: "background 0.2s",
+    fontSize: "0.9rem",
+    transition: "border-color 0.2s",
   },
   main: {
     flex: 1,
     padding: "3rem 3rem",
-    maxWidth: "1400px",
+    maxWidth: "1200px",
     width: "100%",
     margin: "0 auto",
     boxSizing: "border-box",
   },
   fab: {
     position: "fixed",
-    bottom: "30px",
-    right: "30px",
-    background: "rgba(255,255,255,0.1)",
-    backdropFilter: "blur(10px)",
-    border: "1px solid rgba(255,255,255,0.2)",
+    bottom: "2rem",
+    right: "2rem",
+    background: "rgba(255,255,255,0.08)",
+    backdropFilter: "blur(12px)",
+    border: "1px solid rgba(255,255,255,0.15)",
     color: "#fff",
     borderRadius: "50%",
     width: "56px",
@@ -265,17 +265,14 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "center",
     cursor: "pointer",
     zIndex: 1000,
-    transition: "transform 0.2s",
     fontWeight: 300,
+    transition: "transform 0.2s",
   },
-  modalOverlay: {
+  overlay: {
     position: "fixed",
-    top: 0,
-    left: 0,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0,0,0,0.8)",
-    backdropFilter: "blur(5px)",
+    inset: 0,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    backdropFilter: "blur(8px)",
     display: "flex",
     justifyContent: "center",
     alignItems: "center",
@@ -292,6 +289,12 @@ const styles: Record<string, React.CSSProperties> = {
     overflowY: "auto",
     color: "#fff",
   },
+  modalTitle: {
+    marginTop: 0,
+    fontWeight: 500,
+    fontSize: "1.5rem",
+    marginBottom: "1.5rem",
+  },
   input: {
     width: "100%",
     padding: "0.8rem",
@@ -305,12 +308,12 @@ const styles: Record<string, React.CSSProperties> = {
     boxSizing: "border-box",
   },
   primaryBtn: {
-    backgroundColor: "#fff",
+    background: "#fff",
     color: "#000",
     border: "none",
     padding: "0.9rem 2rem",
     borderRadius: "12px",
-    fontWeight: 700,
+    fontWeight: 600,
     cursor: "pointer",
     fontSize: "1rem",
     width: "100%",
@@ -318,16 +321,16 @@ const styles: Record<string, React.CSSProperties> = {
     transition: "opacity 0.2s",
   },
   secondaryBtn: {
-    backgroundColor: "transparent",
-    border: "1px solid #555",
+    background: "transparent",
+    border: "1px solid #444",
     color: "#fff",
-    padding: "0.5rem 1rem",
-    borderRadius: "8px",
+    padding: "0.6rem 1.2rem",
+    borderRadius: "10px",
     cursor: "pointer",
     fontSize: "0.9rem",
     marginTop: "0.5rem",
   },
-  productItem: {
+  productRow: {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
