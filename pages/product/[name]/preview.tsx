@@ -15,37 +15,38 @@ export default function ProductPreview() {
     }
   }, [name]);
 
-  if (!product) return <p style={{ textAlign: "center", color: "#aaa", marginTop: "4rem" }}>Cargando...</p>;
+  if (!product) return <p style={{ textAlign: "center", color: "#888", marginTop: "5rem" }}>Loading product...</p>;
 
   return (
     <div style={{ maxWidth: "800px", margin: "0 auto" }}>
       <h1 style={styles.title}>{product.name}</h1>
       <p style={styles.desc}>{product.description}</p>
       <div style={styles.meta}>
-        <span>Plataforma: {product.platform}</span>
+        <span>Platform: {product.platform}</span>
         <span style={styles.price}>{product.price} €</span>
       </div>
       <Link href={`/checkout/payment/${encodeURIComponent(product.name)}`} style={styles.buyBtn}>
-        Comprar ahora
+        Buy now
       </Link>
     </div>
   );
 }
 
 const styles: Record<string, React.CSSProperties> = {
-  title: { fontSize: "2.5rem", fontWeight: 300, marginBottom: "1rem" },
-  desc: { color: "#bbb", fontSize: "1.1rem", lineHeight: "1.6", marginBottom: "2rem" },
-  meta: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "2rem", color: "#aaa" },
-  price: { fontSize: "1.5rem", fontWeight: 700, color: "#fff" },
+  title: { fontSize: "2.8rem", fontWeight: 200, letterSpacing: "1px", marginBottom: "1.5rem" },
+  desc: { color: "#bbb", fontSize: "1.1rem", lineHeight: "1.7", marginBottom: "2rem" },
+  meta: { display: "flex", justifyContent: "space-between", marginBottom: "2.5rem", color: "#999" },
+  price: { fontSize: "2rem", fontWeight: 600, color: "#fff" },
   buyBtn: {
     display: "inline-block",
-    backgroundColor: "#fff",
+    background: "#fff",
     color: "#000",
-    padding: "1rem 2.5rem",
-    borderRadius: "12px",
+    padding: "1.2rem 3rem",
+    borderRadius: "14px",
     textDecoration: "none",
-    fontWeight: 700,
+    fontWeight: 600,
     fontSize: "1.1rem",
+    letterSpacing: "0.5px",
     transition: "opacity 0.2s",
   },
 };
