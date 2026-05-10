@@ -1,13 +1,15 @@
 import { SessionProvider, useSession, signOut } from "next-auth/react";
 import type { AppProps } from "next/app";
 import Link from "next/link";
-import { ReactNode, useEffect, useState } from "react";
 import { useRouter } from "next/router";
+import { useState } from "react";
+import Head from "next/head";
 
 const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_SECRET || "onlyalex";
 
-function Layout({ children }: { children: ReactNode }) {
+function Layout({ children }: { children: React.ReactNode }) {
   const { data: session } = useSession();
+  const router = useRouter();
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [productForm, setProductForm] = useState({
     name: "",
@@ -18,32 +20,30 @@ function Layout({ children }: { children: ReactNode }) {
   });
   const [coupons, setCoupons] = useState<{ code: string; discount: string }[]>([]);
   const [adminMsg, setAdminMsg] = useState("");
-  const [products, setProducts] = useState<any[]>([]);
-  const router = useRouter();
+  const [adminProducts, setAdminProducts] = useState<any[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+
+  const fetchAdminProducts = async () => {
+    setLoadingProducts(true);
+    try {
+      const res = await fetch("/api/products");
+      const data = await res.json();
+      setAdminProducts(data || []);
+    } catch {}
+    setLoadingProducts(false);
+  };
 
   const handleAdminClick = () => {
     const password = prompt("Introduce la contraseña de administrador:");
     if (password === ADMIN_SECRET) {
       setShowAdminModal(true);
-      fetchProducts();
+      fetchAdminProducts();
     } else if (password !== null) {
       alert("Contraseña incorrecta");
     }
   };
 
-  const fetchProducts = async () => {
-    try {
-      const res = await fetch("/api/products");
-      const data = await res.json();
-      setProducts(data);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  const addCoupon = () => {
-    setCoupons([...coupons, { code: "", discount: "" }]);
-  };
+  const addCoupon = () => setCoupons([...coupons, { code: "", discount: "" }]);
 
   const createProduct = async () => {
     if (!productForm.name || !productForm.price || !productForm.paymentLink || !productForm.description) {
@@ -65,173 +65,111 @@ function Layout({ children }: { children: ReactNode }) {
       });
       const data = await res.json();
       if (res.ok) {
-        setAdminMsg("Producto creado exitosamente.");
+        setAdminMsg("Producto creado.");
         setProductForm({ name: "", price: "", paymentLink: "", description: "", platform: "" });
         setCoupons([]);
-        fetchProducts();
+        fetchAdminProducts();
       } else {
-        setAdminMsg(data.error || "Error al crear producto.");
+        setAdminMsg(data.error || "Error");
       }
     } catch {
       setAdminMsg("Error de conexión.");
     }
   };
 
-  const deleteProduct = async (name: string) => {
-    if (!confirm(`¿Estás seguro de eliminar el producto "${name}"?`)) return;
+  const deleteProduct = async (productName: string) => {
+    if (!confirm(`¿Eliminar "${productName}"?`)) return;
     try {
-      const res = await fetch("/api/products/delete", {
+      const res = await fetch(`/api/products?name=${encodeURIComponent(productName)}`, {
         method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-          "x-admin-secret": ADMIN_SECRET,
-        },
-        body: JSON.stringify({ name }),
+        headers: { "x-admin-secret": ADMIN_SECRET },
       });
-      const data = await res.json();
       if (res.ok) {
-        setAdminMsg("Producto eliminado correctamente.");
-        fetchProducts();
+        fetchAdminProducts();
       } else {
-        setAdminMsg(data.error || "Error al eliminar producto.");
+        const data = await res.json();
+        setAdminMsg(data.error || "Error al eliminar");
       }
     } catch {
-      setAdminMsg("Error de conexión.");
+      setAdminMsg("Error de conexión al eliminar.");
     }
   };
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#000", color: "#fff", fontFamily: "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif" }}>
-      <nav style={{
-        display: "flex", justifyContent: "space-between", padding: "1rem 2rem",
-        borderBottom: "1px solid #333", alignItems: "center"
-      }}>
-        <Link href="/entry" style={{ color: "#fff", fontWeight: "bold", fontSize: "1.5rem", textDecoration: "none" }}>
-          RXCHEATS
-        </Link>
-        <div style={{ display: "flex", gap: "1rem", alignItems: "center" }}>
-          {session ? (
-            <>
-              <span style={{ color: "#aaa" }}>
-                {session.user?.name} #{session.user?.dashboardId}
-              </span>
-              <button onClick={() => signOut({ callbackUrl: "/" })} style={{
-                background: "none", border: "1px solid #fff", color: "#fff", padding: "0.3rem 0.8rem", borderRadius: "4px", cursor: "pointer"
-              }}>Cerrar sesión</button>
-            </>
-          ) : (
-            <Link href="/login" style={{ color: "#fff", textDecoration: "none" }}>Iniciar sesión</Link>
-          )}
-        </div>
-      </nav>
-      <main style={{ padding: "2rem", maxWidth: "1200px", margin: "0 auto" }}>{children}</main>
-
-      {/* Botón "+" flotante */}
-      <button
-        onClick={handleAdminClick}
-        style={{
-          position: "fixed", bottom: "20px", right: "20px",
-          background: "#fff", color: "#000", border: "none", borderRadius: "50%",
-          width: "50px", height: "50px", fontSize: "2rem", cursor: "pointer",
-          boxShadow: "0 4px 15px rgba(255,255,255,0.3)"
-        }}
-      >
-        +
-      </button>
-
-      {/* Modal de administración */}
-      {showAdminModal && (
-        <div style={{
-          position: "fixed", top: 0, left: 0, width: "100%", height: "100%",
-          backgroundColor: "rgba(0,0,0,0.8)", display: "flex", justifyContent: "center", alignItems: "center",
-          zIndex: 2000
-        }}>
-          <div style={{
-            backgroundColor: "#111", border: "1px solid #333", borderRadius: "12px", padding: "2rem",
-            width: "90%", maxWidth: "700px", color: "#fff", maxHeight: "90vh", overflowY: "auto"
-          }}>
-            <h2 style={{ marginTop: 0 }}>Administrar Productos</h2>
-            
-            {/* Formulario de creación */}
-            <div style={{ borderBottom: "1px solid #333", paddingBottom: "1.5rem", marginBottom: "1.5rem" }}>
-              <h3>Crear nuevo producto</h3>
-              <input type="text" placeholder="Nombre del producto" value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} style={inputStyle} />
-              <input type="number" placeholder="Precio" value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} style={inputStyle} />
-              <input type="text" placeholder="Enlace de pago" value={productForm.paymentLink} onChange={e => setProductForm({ ...productForm, paymentLink: e.target.value })} style={inputStyle} />
-              <textarea placeholder="Descripción" value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} style={{ ...inputStyle, resize: "vertical" }} rows={3} />
-              <input type="text" placeholder="Plataforma (ej. PayPal)" value={productForm.platform} onChange={e => setProductForm({ ...productForm, platform: e.target.value })} style={inputStyle} />
-
-              <h4>Cupones</h4>
-              {coupons.map((c, i) => (
-                <div key={i} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
-                  <input type="text" placeholder="Código" value={c.code} onChange={e => {
-                    const newCoupons = [...coupons];
-                    newCoupons[i].code = e.target.value;
-                    setCoupons(newCoupons);
-                  }} style={inputStyle} />
-                  <input type="number" placeholder="Descuento" value={c.discount} onChange={e => {
-                    const newCoupons = [...coupons];
-                    newCoupons[i].discount = e.target.value;
-                    setCoupons(newCoupons);
-                  }} style={inputStyle} />
-                </div>
-              ))}
-              <button onClick={addCoupon} style={{ backgroundColor: "#333", color: "#fff", border: "none", padding: "0.5rem 1rem", borderRadius: "4px", cursor: "pointer", marginBottom: "1rem", marginRight: "0.5rem" }}>+ Añadir cupón</button>
-              
-              <button onClick={createProduct} style={{
-                backgroundColor: "#fff", color: "#000", border: "none", padding: "0.8rem", borderRadius: "8px",
-                fontWeight: "bold", cursor: "pointer", width: "100%", marginTop: "0.5rem"
-              }}>
-                Publicar Producto
-              </button>
-              {adminMsg && <p style={{ marginTop: "0.5rem", color: adminMsg.includes("Error") || adminMsg.includes("error") ? "#ff6b6b" : "#51cf66" }}>{adminMsg}</p>}
-            </div>
-
-            {/* Lista de productos existentes */}
-            <div>
-              <h3>Productos existentes</h3>
-              {products.length === 0 && <p style={{ color: "#aaa" }}>No hay productos. Crea el primero.</p>}
-              {products.map((product: any) => (
-                <div key={product.name} style={{
-                  display: "flex", justifyContent: "space-between", alignItems: "center",
-                  backgroundColor: "#222", borderRadius: "8px", padding: "0.8rem", marginBottom: "0.5rem"
-                }}>
-                  <div>
-                    <strong>{product.name}</strong> - {product.price} €
-                    <br />
-                    <small style={{ color: "#aaa" }}>{product.platform}</small>
-                  </div>
-                  <button
-                    onClick={() => deleteProduct(product.name)}
-                    style={{
-                      background: "none", border: "1px solid #ff6b6b", color: "#ff6b6b",
-                      borderRadius: "6px", padding: "0.3rem 0.8rem", cursor: "pointer",
-                      fontSize: "0.9rem"
-                    }}
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            <button onClick={() => { setShowAdminModal(false); setAdminMsg(""); }} style={{
-              backgroundColor: "#555", color: "#fff", border: "none", padding: "0.8rem", borderRadius: "8px",
-              width: "100%", marginTop: "1.5rem", cursor: "pointer"
-            }}>
-              Cerrar
-            </button>
+    <>
+      <Head>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
+      </Head>
+      <div style={styles.wrapper}>
+        <nav style={styles.nav}>
+          <Link href="/entry" style={styles.logo}>RXCHEATS</Link>
+          <div style={styles.navRight}>
+            {session ? (
+              <>
+                <span style={styles.userInfo}>
+                  {session.user?.name} <span style={styles.badge}>#{session.user?.dashboardId}</span>
+                </span>
+                <button onClick={() => signOut({ callbackUrl: "/" })} style={styles.navBtn}>Cerrar sesión</button>
+              </>
+            ) : (
+              <Link href="/login" style={styles.navBtn}>Iniciar sesión</Link>
+            )}
           </div>
-        </div>
-      )}
-    </div>
+        </nav>
+        <main style={styles.main}>{children}</main>
+
+        {/* Botón "+" flotante */}
+        <button onClick={handleAdminClick} style={styles.fab}>+</button>
+
+        {/* Modal admin */}
+        {showAdminModal && (
+          <div style={styles.modalOverlay}>
+            <div style={styles.modal}>
+              <h2 style={{ marginTop: 0, fontWeight: 600 }}>Administrar Productos</h2>
+
+              {/* Formulario de creación */}
+              <div style={{ marginBottom: "2rem" }}>
+                <input type="text" placeholder="Nombre" value={productForm.name} onChange={e => setProductForm({ ...productForm, name: e.target.value })} style={styles.input} />
+                <input type="number" placeholder="Precio (€)" value={productForm.price} onChange={e => setProductForm({ ...productForm, price: e.target.value })} style={styles.input} />
+                <input type="text" placeholder="Enlace de pago" value={productForm.paymentLink} onChange={e => setProductForm({ ...productForm, paymentLink: e.target.value })} style={styles.input} />
+                <textarea placeholder="Descripción" value={productForm.description} onChange={e => setProductForm({ ...productForm, description: e.target.value })} rows={3} style={{ ...styles.input, resize: "vertical" }} />
+                <input type="text" placeholder="Plataforma (ej. PayPal)" value={productForm.platform} onChange={e => setProductForm({ ...productForm, platform: e.target.value })} style={styles.input} />
+
+                <h3>Cupones</h3>
+                {coupons.map((c, i) => (
+                  <div key={i} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                    <input type="text" placeholder="Código" value={c.code} onChange={e => { const nc = [...coupons]; nc[i].code = e.target.value; setCoupons(nc); }} style={styles.input} />
+                    <input type="number" placeholder="Descuento (€)" value={c.discount} onChange={e => { const nc = [...coupons]; nc[i].discount = e.target.value; setCoupons(nc); }} style={styles.input} />
+                  </div>
+                ))}
+                <button onClick={addCoupon} style={styles.secondaryBtn}>+ Añadir cupón</button>
+                <button onClick={createProduct} style={styles.primaryBtn}>Publicar Producto</button>
+                {adminMsg && <p style={{ marginTop: "0.5rem", color: adminMsg.includes("Error") ? "#ff6b6b" : "#51cf66" }}>{adminMsg}</p>}
+              </div>
+
+              {/* Lista de productos con opción de eliminar */}
+              <div>
+                <h3>Productos existentes</h3>
+                {loadingProducts && <p>Cargando...</p>}
+                {!loadingProducts && adminProducts.length === 0 && <p style={{ color: "#aaa" }}>No hay productos.</p>}
+                {adminProducts.map((p: any) => (
+                  <div key={p.name} style={styles.productItem}>
+                    <div>
+                      <strong>{p.name}</strong> – {p.price}€
+                    </div>
+                    <button onClick={() => deleteProduct(p.name)} style={styles.deleteBtn}>🗑️</button>
+                  </div>
+                ))}
+              </div>
+
+              <button onClick={() => setShowAdminModal(false)} style={{ ...styles.secondaryBtn, width: "100%", marginTop: "1rem" }}>Cerrar</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
-
-const inputStyle: React.CSSProperties = {
-  width: "100%", padding: "0.6rem", marginBottom: "0.8rem", borderRadius: "6px",
-  border: "1px solid #444", backgroundColor: "#222", color: "#fff", fontSize: "0.95rem", outline: "none"
-};
 
 export default function App({ Component, pageProps: { session, ...pageProps } }: AppProps) {
   return (
@@ -242,3 +180,165 @@ export default function App({ Component, pageProps: { session, ...pageProps } }:
     </SessionProvider>
   );
 }
+
+// ==================== ESTILOS FULL‑SCREEN PROFESIONALES ====================
+const styles: Record<string, React.CSSProperties> = {
+  wrapper: {
+    minHeight: "100vh",
+    background: "radial-gradient(ellipse at bottom, #1a1a1a 0%, #0d0d0d 100%)",
+    color: "#fff",
+    fontFamily: "'Inter', system-ui, sans-serif",
+    display: "flex",
+    flexDirection: "column",
+  },
+  nav: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "1.2rem 3rem",
+    backdropFilter: "blur(20px)",
+    background: "rgba(255,255,255,0.02)",
+    borderBottom: "1px solid rgba(255,255,255,0.05)",
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+  },
+  logo: {
+    fontSize: "1.8rem",
+    fontWeight: 300,
+    letterSpacing: "6px",
+    color: "#fff",
+    textDecoration: "none",
+    textTransform: "uppercase" as const,
+  },
+  navRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: "1.5rem",
+  },
+  userInfo: {
+    fontSize: "0.9rem",
+    color: "#ccc",
+  },
+  badge: {
+    backgroundColor: "#333",
+    padding: "0.1rem 0.5rem",
+    borderRadius: "12px",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    color: "#aaa",
+  },
+  navBtn: {
+    background: "none",
+    border: "1px solid rgba(255,255,255,0.2)",
+    color: "#fff",
+    padding: "0.4rem 1.2rem",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "0.85rem",
+    fontWeight: 500,
+    textDecoration: "none",
+    transition: "background 0.2s",
+  },
+  main: {
+    flex: 1,
+    padding: "3rem 3rem",
+    maxWidth: "1400px",
+    width: "100%",
+    margin: "0 auto",
+    boxSizing: "border-box",
+  },
+  fab: {
+    position: "fixed",
+    bottom: "30px",
+    right: "30px",
+    background: "rgba(255,255,255,0.1)",
+    backdropFilter: "blur(10px)",
+    border: "1px solid rgba(255,255,255,0.2)",
+    color: "#fff",
+    borderRadius: "50%",
+    width: "56px",
+    height: "56px",
+    fontSize: "2rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    cursor: "pointer",
+    zIndex: 1000,
+    transition: "transform 0.2s",
+    fontWeight: 300,
+  },
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(0,0,0,0.8)",
+    backdropFilter: "blur(5px)",
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 2000,
+  },
+  modal: {
+    backgroundColor: "#111",
+    border: "1px solid #333",
+    borderRadius: "20px",
+    padding: "2.5rem",
+    width: "90%",
+    maxWidth: "700px",
+    maxHeight: "80vh",
+    overflowY: "auto",
+    color: "#fff",
+  },
+  input: {
+    width: "100%",
+    padding: "0.8rem",
+    marginBottom: "0.8rem",
+    borderRadius: "10px",
+    border: "1px solid #333",
+    backgroundColor: "#1a1a1a",
+    color: "#fff",
+    fontSize: "0.95rem",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  primaryBtn: {
+    backgroundColor: "#fff",
+    color: "#000",
+    border: "none",
+    padding: "0.9rem 2rem",
+    borderRadius: "12px",
+    fontWeight: 700,
+    cursor: "pointer",
+    fontSize: "1rem",
+    width: "100%",
+    marginTop: "0.8rem",
+    transition: "opacity 0.2s",
+  },
+  secondaryBtn: {
+    backgroundColor: "transparent",
+    border: "1px solid #555",
+    color: "#fff",
+    padding: "0.5rem 1rem",
+    borderRadius: "8px",
+    cursor: "pointer",
+    fontSize: "0.9rem",
+    marginTop: "0.5rem",
+  },
+  productItem: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "0.6rem 0",
+    borderBottom: "1px solid #222",
+  },
+  deleteBtn: {
+    background: "none",
+    border: "none",
+    color: "#ff6b6b",
+    cursor: "pointer",
+    fontSize: "1.2rem",
+  },
+};
