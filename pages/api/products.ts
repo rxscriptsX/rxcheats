@@ -35,7 +35,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         return res.status(400).json({ error: "Faltan campos obligatorios" });
       }
 
-      // Verificar nombre duplicado
       const snap = await db.ref("products").orderByChild("name").equalTo(name).once("value");
       if (snap.exists()) {
         return res.status(409).json({ error: "Ya existe un producto con ese nombre" });
@@ -55,6 +54,33 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await newRef.set(product);
 
       return res.status(201).json({ id: newRef.key, ...product });
+    }
+
+    if (req.method === "DELETE") {
+      const secret = req.headers["x-admin-secret"];
+      if (secret !== process.env.ADMIN_SECRET) {
+        return res.status(403).json({ error: "No autorizado" });
+      }
+
+      const { name } = req.query;
+      if (!name || typeof name !== "string") {
+        return res.status(400).json({ error: "Falta el nombre del producto" });
+      }
+
+      const snap = await db.ref("products").orderByChild("name").equalTo(name).once("value");
+      if (!snap.exists()) {
+        return res.status(404).json({ error: "Producto no encontrado" });
+      }
+
+      // Eliminar el primer nodo que coincida
+      const updates: Record<string, null> = {};
+      snap.forEach(child => {
+        updates[child.key!] = null;
+        return true; // solo el primero
+      });
+      await db.ref("products").update(updates);
+
+      return res.status(200).json({ success: true });
     }
 
     return res.status(405).json({ error: "Method not allowed" });
