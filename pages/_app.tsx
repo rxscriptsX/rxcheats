@@ -100,6 +100,12 @@ function Layout({ children }: { children: React.ReactNode }) {
           href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap"
           rel="stylesheet"
         />
+        <style>{`
+          body, html { margin: 0; padding: 0; background: #0a0a0a; }
+          ::-webkit-scrollbar { width: 8px; }
+          ::-webkit-scrollbar-track { background: #0a0a0a; }
+          ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        `}</style>
       </Head>
       <div style={styles.shell}>
         <nav style={styles.nav}>
