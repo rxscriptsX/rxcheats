@@ -7,7 +7,7 @@ export default function Checkout() {
   const [product, setProduct] = useState<any>(null);
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
-  const [couponError, setCouponError] = useState("");
+  const [couponMsg, setCouponMsg] = useState("");
   const [finalPrice, setFinalPrice] = useState(0);
 
   useEffect(() => {
@@ -33,40 +33,65 @@ export default function Checkout() {
       if (res.ok) {
         setDiscount(data.discount);
         setFinalPrice(product.price - data.discount);
-        setCouponError("");
+        setCouponMsg("Coupon applied!");
       } else {
-        setCouponError(data.error || "Cupón inválido");
+        setCouponMsg(data.error || "Invalid coupon");
         setDiscount(0);
         setFinalPrice(product.price);
       }
     } catch {
-      setCouponError("Error de conexión");
+      setCouponMsg("Connection error");
     }
   };
 
-  if (!product) return <p>Cargando...</p>;
+  if (!product) return <p style={{ textAlign: "center", color: "#888", marginTop: "5rem" }}>Loading...</p>;
 
   return (
-    <div>
-      <h1>{product.name}</h1>
-      <p>{product.description}</p>
-      <p>Plataforma: {product.platform}</p>
-      <p>Precio original: {product.price} €</p>
-      {discount > 0 && <p style={{ color: "#4caf50" }}>Descuento aplicado: -{discount} €</p>}
-      <p>Precio final: {finalPrice} €</p>
-      <input
-        type="text"
-        placeholder="Código de cupón"
-        value={couponCode}
-        onChange={e => setCouponCode(e.target.value)}
-        style={{ padding: "0.5rem", borderRadius: "4px", border: "1px solid #444", backgroundColor: "#222", color: "#fff", marginRight: "0.5rem" }}
-      />
-      <button onClick={applyCoupon} style={{ backgroundColor: "#fff", color: "#000", border: "none", padding: "0.5rem 1rem", borderRadius: "4px", cursor: "pointer" }}>Aplicar</button>
-      {couponError && <p style={{ color: "#ff6b6b" }}>{couponError}</p>}
+    <div style={{ maxWidth: "600px", margin: "0 auto" }}>
+      <h1 style={styles.title}>{product.name}</h1>
+      <p style={styles.desc}>{product.description}</p>
+      <div style={styles.row}>
+        <span>Platform: {product.platform}</span>
+        <span style={styles.price}>{finalPrice} €</span>
+      </div>
+      {discount > 0 && <p style={{ color: "#4caf50", marginBottom: "1rem" }}>Discount: -{discount} €</p>}
 
-      <a href={product.paymentLink} target="_blank" rel="noopener noreferrer" style={{ display: "inline-block", backgroundColor: "#fff", color: "#000", padding: "0.8rem 2rem", borderRadius: "8px", textDecoration: "none", fontWeight: "bold", marginTop: "1rem" }}>
-        Buy Right Now
+      <div style={styles.couponBox}>
+        <input
+          type="text"
+          placeholder="Coupon code"
+          value={couponCode}
+          onChange={e => setCouponCode(e.target.value)}
+          style={styles.couponInput}
+        />
+        <button onClick={applyCoupon} style={styles.applyBtn}>Apply</button>
+        {couponMsg && <p style={{ marginTop: "0.5rem", color: couponMsg.includes("Invalid") ? "#ff6b6b" : "#4caf50" }}>{couponMsg}</p>}
+      </div>
+
+      <a href={product.paymentLink} target="_blank" rel="noopener noreferrer" style={styles.buyBtn}>
+        Buy right now
       </a>
     </div>
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  title: { fontSize: "2.5rem", fontWeight: 300, marginBottom: "1rem" },
+  desc: { color: "#ccc", lineHeight: "1.6", marginBottom: "2rem" },
+  row: { display: "flex", justifyContent: "space-between", marginBottom: "1.5rem", color: "#aaa" },
+  price: { fontSize: "2rem", fontWeight: 700, color: "#fff" },
+  couponBox: { marginBottom: "2rem" },
+  couponInput: {
+    padding: "0.8rem", borderRadius: "10px", border: "1px solid #333", background: "#1a1a1a",
+    color: "#fff", width: "calc(100% - 100px)", marginRight: "0.5rem", outline: "none",
+  },
+  applyBtn: {
+    background: "#333", color: "#fff", border: "none", padding: "0.8rem 1.2rem",
+    borderRadius: "10px", cursor: "pointer", fontWeight: 600,
+  },
+  buyBtn: {
+    display: "inline-block", background: "#fff", color: "#000", padding: "1.2rem 3rem",
+    borderRadius: "14px", textDecoration: "none", fontWeight: 600, fontSize: "1.1rem",
+    marginTop: "1rem", transition: "opacity 0.2s",
+  },
+};
